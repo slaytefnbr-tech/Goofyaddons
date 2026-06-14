@@ -93,4 +93,8 @@ public class FlipCalculator {
 
     }
 
+    public List<FlipItem> getFlipItemsList() {
+        return flipItemsList;
+    }
+
 }
