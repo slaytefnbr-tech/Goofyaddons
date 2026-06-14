@@ -1,5 +1,7 @@
 package com.goofy.goofyaddons.utils;
 
+import net.minecraft.client.Minecraft;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -56,6 +58,7 @@ public class Schedular {
             if (loop == 0) return false;
             return (ticks - this.ticks) % loop == 0;
         }
+
 
 
     }
