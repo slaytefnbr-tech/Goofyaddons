@@ -5,8 +5,9 @@ import net.minecraft.world.scores.DisplaySlot;
 import net.minecraft.world.scores.Objective;
 import net.minecraft.world.scores.PlayerScoreEntry;
 import net.minecraft.world.scores.PlayerTeam;
+import net.minecraft.world.scores.Scoreboard;
 
-public class Scoreboard {
+public class ScoreboardUtils {
 
     public double getPurse() {
         Double purse = (double) -1;
@@ -14,7 +15,7 @@ public class Scoreboard {
         if (minecraft.player == null) return -1;
         if (minecraft.level == null) return -1;
 
-        net.minecraft.world.scores.Scoreboard scoreboard = minecraft.level.getScoreboard();
+        Scoreboard scoreboard = minecraft.level.getScoreboard();
         Objective sidebar = scoreboard.getDisplayObjective(DisplaySlot.SIDEBAR);
 
         if (sidebar == null) return -1;

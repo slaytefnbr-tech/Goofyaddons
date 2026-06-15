@@ -17,8 +17,8 @@ public class Scheduler {
     }
 
     public void tick() {
+        firedThisTick = false;
         for (ScheduledAction action : new ArrayList<>(actions)) {
-            firedThisTick = false;
             if (action.shouldFire(ticks) && !firedThisTick) {
                 firedThisTick = true;
                 action.action.run();

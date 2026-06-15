@@ -27,7 +27,7 @@ public class BazaarFlipper {
     private State lastState = null;
     private List<FlipItem> flipItemsList = new ArrayList<>();
     private FlipCalculator flipCalculator = new FlipCalculator();
-    private Scoreboard scoreboard = new Scoreboard();
+    private ScoreboardUtils scoreboardUtils = new ScoreboardUtils();
     private final Queue<FlipItem> queue = new LinkedList<>();
     InventoryScanner inventoryScanner = new InventoryScanner();
     Minecraft minecraft = Minecraft.getInstance();
@@ -47,11 +47,15 @@ public class BazaarFlipper {
             case FETCHING -> {
                 if (!flipItemsList.isEmpty()) processData();
                 scheduler.every(20, 10, () -> flipItemsList = flipCalculator.getFlipItemsList());
+                FlipItem currentFlip = queue.poll();
+                if (currentFlip != null) {
+                    currentBook = currentFlip.book();
+                }
             }
 
             case BAZAAR_NAVIGATION -> {
                 if (!queue.isEmpty()) {
-                    queue.poll().setBook(currentBook);
+                    queue.poll();
                 }
                 if (minecraft.screen.getTitle().toString().contains("bazaar")) openBazaar(currentBook.name());
                     scheduler.at(20, () -> {
@@ -95,7 +99,7 @@ public class BazaarFlipper {
     }
 
     private void processData() {
-        double purse = scoreboard.getPurse();
+        double purse = scoreboardUtils.getPurse();
         for (FlipItem flipItems : flipItemsList) {
             if (purse < flipItems.totalCost()) continue;
             queue.add(flipItems);
