@@ -1,10 +1,21 @@
 package com.goofy.goofyaddons.features.bookflipper;
 
-import com.goofy.goofyaddons.features.bookflipper.helper.*;
-import com.goofy.goofyaddons.utils.*;
+import com.goofy.goofyaddons.features.bookflipper.helper.BazaarMonitor;
+import com.goofy.goofyaddons.features.bookflipper.helper.Book;
+import com.goofy.goofyaddons.features.bookflipper.helper.FlipCalculator;
+import com.goofy.goofyaddons.features.bookflipper.helper.FlipItem;
+import com.goofy.goofyaddons.utils.Clock;
+import com.goofy.goofyaddons.utils.InventoryScanner;
+import com.goofy.goofyaddons.utils.InventoryUtils;
+import com.goofy.goofyaddons.utils.ScoreboardUtils;
 
 import java.lang.reflect.Field;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractSignEditScreen;
