@@ -30,7 +30,8 @@ public class BazaarFlipper {
         FETCHING,
         BAZAAR_NAVIGATION,
         PLACE_ORDER,
-        OUTBID
+        OUTBID,
+        STORE
     }
     private Clock clock = new Clock();
     private State state = State.IDLE;
@@ -46,6 +47,8 @@ public class BazaarFlipper {
     private List<Book> buyOrderBook = new ArrayList<>();
     private Map<Book, Integer> bookIntegerMap = new HashMap<>();
     private List<Book> outbidBuyOrderBook = new ArrayList<>();
+    private List<Book> booksToStore = new ArrayList<>();
+    private List<Book> completedList = new ArrayList<>();
 
 
 
@@ -73,6 +76,8 @@ public class BazaarFlipper {
             }
 
             case FETCHING -> {
+                if (!booksToStore.isEmpty()) state = State.STORE;
+
                 if (!queue.isEmpty()) {
                     currentBook = queue.poll();
                     state = State.BAZAAR_NAVIGATION;
@@ -134,15 +139,40 @@ public class BazaarFlipper {
 
                     if (containerCheck("Bazaar")) clock.start(250);
                     if (containerCheck("Bazaar") & clock.shouldFire()) {
-                        if (outbidBuyOrderBook.isEmpty()) state = State.FETCHING;
+                        if (outbidBuyOrderBook.isEmpty()) state = State.IDLE;
 
-                        int slot = inventoryScanner.findContainer("BUY " + outbidBuyOrderBook.getFirst()
-                                .getRomanLevel(outbidBuyOrderBook.getFirst().level())).getFirst();
 
+                        List<Integer> slots = inventoryScanner.findContainer("BUY " + outbidBuyOrderBook.getFirst()
+                                .getRomanLevel(outbidBuyOrderBook.getFirst().level()));
+                        if (slots.isEmpty()) {
+                            if (bookIntegerMap.containsKey(outbidBuyOrderBook.getFirst()) & bookIntegerMap.get(outbidBuyOrderBook.getFirst())
+                            == outbidBuyOrderBook.getFirst().getQtyAmount(outbidBuyOrderBook.getFirst().level())) {
+                                completedList.add(outbidBuyOrderBook.getFirst());
+                                booksToStore.remove(outbidBuyOrderBook.getFirst());
+                                outbidBuyOrderBook.removeFirst();
+                            } else {
+                                queue.add(outbidBuyOrderBook.getFirst());
+                                outbidBuyOrderBook.removeFirst();
+                            }
+                        }
+                        if (!slots.isEmpty()) {
+                            int amount = inventoryScanner.checkOrder(slots.getFirst());
+                            InventoryUtils.clickSlot(slots.getFirst(), false);
+                            if (amount == 0) return;
+                            bookIntegerMap.merge(outbidBuyOrderBook.getFirst(), amount, Integer::sum);
+                            booksToStore.add(outbidBuyOrderBook.getFirst());
+                        }
 
                     }
 
+                    if (containerCheck("Order")) clock.start(250);
+                    if (containerCheck("Order") & clock.shouldFire()) InventoryUtils.clickSlot(11, false);
             }
+
+            case STORE -> {
+
+            }
+
 
         }
 
@@ -179,7 +209,8 @@ public class BazaarFlipper {
         String amountToOrder = String.valueOf(currentBook.getQtyAmount(currentBook.level()));
         if (minecraft.screen instanceof AbstractSignEditScreen signScreen) {
             if (bookIntegerMap.containsKey(currentBook)) {
-                amountToOrder = String.valueOf(bookIntegerMap.get(currentBook));
+                int calcAmount = bookIntegerMap.get(currentBook) - currentBook.getQtyAmount(currentBook.level());
+                amountToOrder = String.valueOf(calcAmount);
             }
 
             try {
