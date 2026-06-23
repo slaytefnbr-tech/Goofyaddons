@@ -41,13 +41,15 @@ public class BazaarMonitor {
     }
 
     public List<Book> isOutbid(boolean isSellOrder) {
+        List<Book> sellOrderBooks = getOutbidSellOrderBookList;
+        List<Book> buyOrderBooks = getOutbidBuyOrderBookList;
         if (!isSellOrder) {
             getOutbidBuyOrderBookList.clear();
-            return getOutbidBuyOrderBookList;
+            return buyOrderBooks;
         }
 
         getOutbidSellOrderBookList.clear();
-        return getOutbidSellOrderBookList;
+        return sellOrderBooks;
     }
 
     public void onTick() {

@@ -31,7 +31,9 @@ public class BazaarFlipper {
         BAZAAR_NAVIGATION,
         PLACE_ORDER,
         OUTBID,
-        STORE
+        STORE,
+        ANVIL,
+        COMBINE
     }
     private Clock clock = new Clock();
     private State state = State.IDLE;
@@ -49,6 +51,7 @@ public class BazaarFlipper {
     private List<Book> outbidBuyOrderBook = new ArrayList<>();
     private List<Book> booksToStore = new ArrayList<>();
     private List<Book> completedList = new ArrayList<>();
+    private int counter = 0;
 
 
 
@@ -63,9 +66,11 @@ public class BazaarFlipper {
             case IDLE -> {
 
 
+
                 if (!booksToStore.isEmpty()) state = State.STORE;
+                if (!completedList.isEmpty()) state = State.ANVIL;
                 clock.start(15000);
-                if (!clock.shouldFire()) {
+                if (clock.shouldFire()) {
                     for (Book book : buyOrderBook) {
                         List<Book> outbidBookList = bazaarMonitor.isOutbid(false);
                         if (outbidBookList.isEmpty()) continue;
@@ -176,6 +181,7 @@ public class BazaarFlipper {
                     if (containerCheck("Order") & clock.shouldFire()) InventoryUtils.clickSlot(11, false);
             }
 
+
             case STORE -> {
                 if (!containerCheck("Ender Chest")) clock.start(150);
                 if (!containerCheck("Ender Chest") & clock.shouldFire()) openEnderChest();
@@ -189,6 +195,37 @@ public class BazaarFlipper {
                     int slot = inventoryScanner.findLoreInv(booksToStore.getFirst().getRomanLevel(booksToStore.getFirst().level())).getFirst();
                     InventoryUtils.clickSlot(slot, true);
                     booksToStore.removeFirst();
+                }
+            }
+
+            case ANVIL -> {
+                List<Integer> slots = new ArrayList<>();
+                if (!containerCheck("Ender Chest")) clock.start(150);
+                if (!containerCheck("Ender Chest") & clock.shouldFire()) openEnderChest();
+
+                if (containerCheck("Ender Chest")) clock.start(150);
+                if (containerCheck("Ender Chest") & clock.shouldFire()) {
+                    for (Book book : completedList) {
+                        slots.addAll(inventoryScanner.findLoreContainer(book.getRomanLevel(book.level())));
+                    }
+                    if (slots.isEmpty()) state = State.COMBINE;
+                    InventoryUtils.clickSlot(slots.getFirst(), true);
+                    slots.removeFirst();
+                }
+            }
+
+            case COMBINE -> {
+                if (!containerCheck("Anvil")) clock.start(250);
+                if (!containerCheck("Anvil") & clock.shouldFire()) openAnvil();
+
+                if (containerCheck("Anvil")) clock.start(250);
+                if (containerCheck("Anvil") & clock.shouldFire()) {
+                    List<Integer> stageOneBookList = new ArrayList<>();
+                    List<Integer> stageTwoBookList = new ArrayList<>();
+                    List<Integer> stageThreeBookList = new ArrayList<>();
+                    List<Integer> stageFourBookList = new ArrayList<>();
+                    List<Integer> stageFiveBookList = new ArrayList<>();
+
                 }
             }
 
