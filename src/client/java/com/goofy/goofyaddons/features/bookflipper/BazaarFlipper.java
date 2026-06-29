@@ -37,6 +37,7 @@ public class BazaarFlipper {
         SELL,
         REPLACE_SELL
     }
+
     private Clock clock = new Clock();
     private State state = State.IDLE;
     private State lastState = null;
@@ -53,8 +54,11 @@ public class BazaarFlipper {
     private List<Book> outbidBuyOrderBook = new ArrayList<>();
     private List<Book> booksToStore = new ArrayList<>();
     private List<Book> completedList = new ArrayList<>();
+    private List<Book> bookstoSell = new ArrayList<>();
     private int counter = 0;
     private boolean clickedOnce = false;
+    private List<Book> booksToRestart;
+    private boolean notEnoughMoney;
 
 
 
@@ -73,6 +77,7 @@ public class BazaarFlipper {
 
                 if (!booksToStore.isEmpty()) state = State.STORE;
                 if (!completedList.isEmpty()) state = State.ANVIL;
+
                 clock.start(15000);
                 if (clock.shouldFire()) {
                     for (Book book : buyOrderBook) {
@@ -84,18 +89,22 @@ public class BazaarFlipper {
                     if (!outbidBuyOrderBook.isEmpty()) return;
                     state = State.OUTBID;
                 }
+                if (notEnoughMoney) {
+                    double purse = scoreboardUtils.getPurse();
+                    if (purse >= 2500000) state = State.FETCHING;
+                    notEnoughMoney = false;
+                }
 
             }
 
             case FETCHING -> {
-                if (!booksToStore.isEmpty()) state = State.STORE;
 
                 if (!queue.isEmpty()) {
                     currentBook = queue.poll();
                     state = State.BAZAAR_NAVIGATION;
                 }
 
-                if (!flipItemsList.isEmpty()) processData();
+                if (!flipItemsList.isEmpty()) processData(booksToRestart);
 
                 clock.start(5000);
                 if (clock.shouldFire() & flipItemsList.isEmpty()) flipItemsList = flipCalculator.getFlipItemsList();
@@ -103,8 +112,8 @@ public class BazaarFlipper {
             }
 
             case BAZAAR_NAVIGATION -> {
-                if (!containerCheck("Bazaar")) clock.start(250);
-                if (!containerCheck("Bazaar") & clock.shouldFire()) openBazaar(currentBook.name().replace("Ultimate", ""));
+                if (!isContainerOpen()) clock.start(250);
+                if (!isContainerOpen() & clock.shouldFire()) openBazaar(currentBook.name().replace("Ultimate", ""));
 
                 if (containerCheck("Bazaar")) clock.start(500);
                 if (containerCheck("Bazaar") & clock.shouldFire()) {
@@ -138,13 +147,16 @@ public class BazaarFlipper {
                 if (containerCheck("Confirm buy order") & clock.shouldFire()) {
                     InventoryUtils.clickSlot(13, false);
                     buyOrderBook.add(currentBook);
+                    if (queue.isEmpty()) state = State.IDLE;
+                    currentBook = queue.poll();
+                    state = State.BAZAAR_NAVIGATION;
 
                 }
             }
 
             case OUTBID -> {
-                    if (!containerCheck("Bazaar")) clock.start(250);
-                    if (!containerCheck("Bazaar") & clock.shouldFire()) openBazaar("Wise");
+                    if (!isContainerOpen()) clock.start(250);
+                    if (!isContainerOpen() & clock.shouldFire()) openBazaar("Wise");
 
                     if (containerCheck("Wise")) clock.start(500);
                     if (containerCheck("Wise") & clock.shouldFire()) InventoryUtils.clickSlot(50, false);
@@ -187,8 +199,8 @@ public class BazaarFlipper {
 
 
             case STORE -> {
-                if (!containerCheck("Ender Chest")) clock.start(150);
-                if (!containerCheck("Ender Chest") & clock.shouldFire()) openEnderChest();
+                if (!isContainerOpen()) clock.start(150);
+                if (!isContainerOpen() & clock.shouldFire()) openEnderChest();
 
                 if (containerCheck("Ender Chest")) clock.start(250);
                 if (containerCheck("Ender Chest") & clock.shouldFire()) {
@@ -212,7 +224,10 @@ public class BazaarFlipper {
                     for (Book book : completedList) {
                         slots.addAll(inventoryScanner.findLoreContainer(book.getRomanLevel(book.level())));
                     }
-                    if (slots.isEmpty()) state = State.COMBINE;
+                    if (slots.isEmpty()) {
+                        state = State.COMBINE;
+                        minecraft.player.closeContainer();
+                    }
                     InventoryUtils.clickSlot(slots.getFirst(), true);
                     slots.removeFirst();
                 }
@@ -224,7 +239,10 @@ public class BazaarFlipper {
 
                 if (containerCheck("Anvil") & counter != 2) clock.start(250);
                 if (containerCheck("Anvil") & clock.shouldFire() & counter != 2) {
-                    if (completedList.isEmpty()) state = State.SELL;
+                    if (completedList.isEmpty()) {
+                        state = State.SELL;
+                        minecraft.player.closeContainer();
+                    }
                     List<Integer> stageOneBookList;
                     List<Integer> stageTwoBookList;
                     List<Integer> stageThreeBookList;
@@ -261,6 +279,7 @@ public class BazaarFlipper {
                     }
                     if (!stageFiveBookList.isEmpty()) {
                         InventoryUtils.clickSlot(stageFiveBookList.getFirst(), true);
+                        bookstoSell.add(completedList.getFirst());
                         completedList.removeFirst();
                         return;
                     }
@@ -281,6 +300,48 @@ public class BazaarFlipper {
 
             }
 
+            case SELL -> {
+                List<Integer> slots = new ArrayList<>();
+                if (!isContainerOpen()) clock.start(250);
+                if (!isContainerOpen() & clock.shouldFire()) openBazaar("tomato");
+
+                if (containerCheck("tomato")) clock.start(500);
+                if (containerCheck("tomato") & clock.shouldFire()) InventoryUtils.clickSlot(50, false);
+
+                if (containerCheck("Bazaar")) clock.start(250);
+                if (containerCheck("Bazaar") & clock.shouldFire()) {
+                    if (bookstoSell.isEmpty()) {
+                        state = State.IDLE;
+                    }
+                    for (Book book : bookstoSell) {
+                        slots.addAll(inventoryScanner.findContainer("BUY" + book.getRomanLevel(5)));
+                    }
+
+                    if (!slots.isEmpty()) {
+                        InventoryUtils.clickSlot(slots.getFirst(), false);
+                    }
+
+                    if (slots.isEmpty()) {
+                        openBazaar(bookstoSell.getFirst().name().replace("Ultimate", ""));
+                    }
+
+                }
+
+                if (containerCheck("Order")) clock.start(250);
+                if (containerCheck("Order") & clock.shouldFire()) InventoryUtils.clickSlot(11, false);
+
+                if (containerCheck(bookstoSell.getFirst().name())) clock.start(500);
+                if (containerCheck(bookstoSell.getFirst().name()) & clock.shouldFire()) InventoryUtils.clickSlot(15, false);
+
+                if (containerCheck("How much do you want to pay")) clock.start(250);
+                if (containerCheck("How much do you want to pay") & clock.shouldFire()) {
+                    InventoryUtils.clickSlot(12, false);
+                    booksToRestart.add(booksToStore.getFirst());
+                    bookstoSell.removeFirst();
+                }
+
+            }
+
 
         }
 
@@ -295,16 +356,32 @@ public class BazaarFlipper {
         }
     }
 
-    private void processData() {
+    private void processData(List<Book> list) {
+        if (notEnoughMoney) return;
         double purse = scoreboardUtils.getPurse();
-        for (FlipItem flipItems : flipItemsList) {
-            if (purse < flipItems.totalCost()) continue;
-            queue.add(flipItems.book());
-        }
-        if (!queue.isEmpty()) {
-            state = State.BAZAAR_NAVIGATION;
+        if (booksToRestart.isEmpty()) {
+            for (FlipItem flipItems : flipItemsList) {
+                if (purse < flipItems.totalCost()) continue;
+                queue.add(flipItems.book());
+            }
+            if (!queue.isEmpty()) {
+                state = State.BAZAAR_NAVIGATION;
+            } else {
+                state = State.IDLE;
+                notEnoughMoney = true;
+            }
         } else {
-            state = State.IDLE;
+            for (FlipItem flipItems : flipItemsList) {
+                if (!list.contains(flipItems.book())) continue;
+                if (purse < flipItems.totalCost()) continue;
+                queue.add(flipItems.book());
+            }
+            if (!queue.isEmpty()) {
+                state = State.FETCHING;
+            } else {
+                state = State.IDLE;
+                notEnoughMoney = true;
+            }
         }
     }
 
@@ -346,6 +423,11 @@ public class BazaarFlipper {
     private boolean containerCheck(String name) {
         if (minecraft.screen == null) return false;
         return minecraft.screen.getTitle().toString().contains(name);
+    }
+
+    private boolean isContainerOpen() {
+        if (minecraft.screen == null) return false;
+        return true;
     }
 }
 
