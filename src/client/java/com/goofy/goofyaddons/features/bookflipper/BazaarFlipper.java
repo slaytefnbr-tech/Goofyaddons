@@ -10,12 +10,7 @@ import com.goofy.goofyaddons.utils.InventoryUtils;
 import com.goofy.goofyaddons.utils.ScoreboardUtils;
 
 import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Queue;
+import java.util.*;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractSignEditScreen;
@@ -38,10 +33,13 @@ public class BazaarFlipper {
     }
 
     private enum BookState {
-        NOT_ENOUGH_CASH,
-        NONE,
+        SELECTED,
         BUY_ORDER,
-
+        OUTBID,
+        STORE,
+        ANVIL,
+        COMBINE,
+        SELL
     }
 
     public boolean enabled = false;
@@ -67,8 +65,10 @@ public class BazaarFlipper {
     private int counter = 0;
     private boolean clickedOnce = false;
     private List<Book> booksToRestart = new ArrayList<>();
+    private Book activeBook = null;
     private boolean notEnoughMoney;
 
+    private final HashMap<Book, Task> task = new LinkedHashMap<>();
 
     private void debug(String msg) {
         System.out.println("[BazaarFlipper] [" + state + "] " + msg);
@@ -142,7 +142,27 @@ public class BazaarFlipper {
             }
 
             case IDLE -> {
+                Book outbidBook = firstBookInState(BookState.OUTBID);
+                if (outbidBook != null) {
+                    state = State.OUTBID;
+                    return;
+                }
 
+                Book selectedBook = firstBookInState(BookState.SELECTED);
+                if (selectedBook != null) {
+                    activeBook = selectedBook;
+                    state = State.BAZAAR_NAVIGATION;
+                    return;
+                }
+
+                Book bookToStore = firstBookInState(BookState.STORE);
+                if (bookToStore != null) {
+                    state = State.STORE;
+                }
+
+
+
+                /*
                 if (!booksToStore.isEmpty()) {
                     debug("IDLE: booksToStore not empty, switching to STORE");
                     state = State.STORE;
@@ -193,11 +213,22 @@ public class BazaarFlipper {
                 if (!booksToRestart.isEmpty()) {
                     debug("IDLE: booksToRestart isn't empty, switching to FETCHING");
                     state = State.FETCHING;
-                    return;
                 }
+
+                 */
             }
 
             case FETCHING -> {
+
+                if (!flipItemsList.isEmpty()) {
+                    processData();
+                    state = State.IDLE;
+                }
+
+                clock.start(5000);
+                if (clock.shouldFire()) flipItemsList = flipCalculator.getFlipItemsList();
+
+                /*
                 if (!queue.isEmpty()) {
                     currentBook = queue.poll();
                     debug("FETCHING: polled book=" + currentBook + ", switching to BAZAAR_NAVIGATION");
@@ -217,24 +248,26 @@ public class BazaarFlipper {
                     for (FlipItem flipItem : flipItemsList) debug("Book: " + flipItem.book());
                     debug("FETCHING: got " + flipItemsList.size() + " flip items");
                 }
+
+                 */
             }
 
             case BAZAAR_NAVIGATION -> {
                 if (!isContainerOpen()) clock.start(1000);
                 if (!isContainerOpen() && clock.shouldFire()) {
-                    debug("BAZAAR_NAVIGATION: no container open, opening bazaar for " + currentBook.name());
-                    openBazaar(currentBook.name().replace("Ultimate", ""));
+                    debug("BAZAAR_NAVIGATION: no container open, opening bazaar for " + activeBook.name());
+                    openBazaar(activeBook.name().replace("Ultimate", ""));
                 }
 
                 if (containerCheck("Bazaar")) clock.start(1000);
                 if (containerCheck("Bazaar") && clock.shouldFire()) {
-                    List<Integer> slots = inventoryScanner.findContainer(currentBook.getRomanLevel(currentBook.level()));
-                    debug("BAZAAR_NAVIGATION: Bazaar open, clicking slot " + slots + " for " + currentBook.getRomanLevel(currentBook.level()));
+                    List<Integer> slots = inventoryScanner.findContainer(activeBook.getRomanLevel(activeBook.level()));
+                    debug("BAZAAR_NAVIGATION: Bazaar open, clicking slot " + slots + " for " + activeBook.getRomanLevel(activeBook.level()));
                     InventoryUtils.clickSlot(slots.getFirst(), false);
                 }
 
-                if (containerCheck(currentBook.name())) clock.start(1000);
-                if (containerCheck(currentBook.name()) && clock.shouldFire()) {
+                if (containerCheck(activeBook.name())) clock.start(1000);
+                if (containerCheck(activeBook.name()) && clock.shouldFire()) {
                     debug("BAZAAR_NAVIGATION: book container open, clicking slot 15");
                     InventoryUtils.clickSlot(15, false);
                 }
@@ -259,24 +292,17 @@ public class BazaarFlipper {
             case PLACE_ORDER -> {
                 if (containerCheck("How much do you want to pay")) clock.start(1000);
                 if (containerCheck("How much do you want to pay") && clock.shouldFire()) {
-                    debug("PLACE_ORDER: clicking slot 12 to confirm price, book=" + currentBook);
-                    bazaarMonitor.add(currentBook, inventoryScanner.getUnitPrice(12), false);
+                    debug("PLACE_ORDER: clicking slot 12 to confirm price, book=" + activeBook);
+                    bazaarMonitor.add(activeBook, inventoryScanner.getUnitPrice(12), false);
                     InventoryUtils.clickSlot(12, false);
                 }
 
                 if (containerCheck("Confirm")) clock.start(1000);
                 if (containerCheck("Confirm") && clock.shouldFire()) {
-                    debug("PLACE_ORDER: confirming buy order for " + currentBook + ", queue remaining=" + queue.size());
+                    debug("PLACE_ORDER: confirming buy order for " + activeBook);
                     InventoryUtils.clickSlot(13, false);
-                    buyOrderBook.add(currentBook);
-                    if (queue.isEmpty()) {
-                        debug("PLACE_ORDER: queue empty, switching to IDLE");
-                        state = State.IDLE;
-                        return;
-                    }
-                    currentBook = queue.poll();
-                    debug("PLACE_ORDER: next book=" + currentBook + ", switching to BAZAAR_NAVIGATION");
-                    state = State.BAZAAR_NAVIGATION;
+                    editStateBook(activeBook, BookState.BUY_ORDER);
+
                 }
             }
 
@@ -295,31 +321,34 @@ public class BazaarFlipper {
 
                 if (containerCheck("Bazaar")) clock.start(1000);
                 if (containerCheck("Bazaar") && clock.shouldFire()) {
-                    if (outbidBuyOrderBook.isEmpty()) {
-                        debug("OUTBID: outbidBuyOrderBook empty, closing container and switching to IDLE");
+
+                    Book bookToHandle = firstBookInState(BookState.OUTBID);
+
+                    if (bookToHandle == null) {
                         minecraft.player.closeContainer();
                         state = State.IDLE;
                         return;
                     }
 
-                    List<Integer> slots = inventoryScanner.findContainer("BUY " + outbidBuyOrderBook.getFirst()
-                            .getRomanLevel(outbidBuyOrderBook.getFirst().level()));
-                    debug("OUTBID: found " + slots.size() + " slots for " + outbidBuyOrderBook.getFirst());
+
+                    List<Integer> slots = inventoryScanner.findContainer("BUY " + bookToHandle.getRomanLevel(bookToHandle.level()));
+                    debug("OUTBID: found " + slots.size() + " slots for " + bookToHandle);
 
                     if (slots.isEmpty()) {
-                        if (bookIntegerMap.containsKey(outbidBuyOrderBook.getFirst()) && bookIntegerMap.get(outbidBuyOrderBook.getFirst())
-                                == outbidBuyOrderBook.getFirst().getQtyAmount(outbidBuyOrderBook.getFirst().level())) {
-                            debug("OUTBID: order complete for " + outbidBuyOrderBook.getFirst() + ", moving to completedList");
-                            completedList.add(outbidBuyOrderBook.getFirst());
-                            booksToStore.remove(outbidBuyOrderBook.getFirst());
-                            bookIntegerMap.remove(outbidBuyOrderBook.getFirst());
-                            outbidBuyOrderBook.removeFirst();
+
+                        if (task.get(bookToHandle).shouldStore()) {
+                            editStateBook(bookToHandle, BookState.STORE);
                         } else {
-                            debug("OUTBID: slots empty and not complete, re-queuing " + outbidBuyOrderBook.getFirst());
-                            queue.add(outbidBuyOrderBook.getFirst());
-                            outbidBuyOrderBook.removeFirst();
+                            editStateBook(bookToHandle, BookState.SELECTED);
                         }
+
+                        if (!task.get(bookToHandle).isCompleted()) return;
+
+                        editStateBook(bookToHandle, BookState.ANVIL);
+
                     }
+
+
                     if (!slots.isEmpty()) {
                         int amount = inventoryScanner.checkOrder(slots.getFirst());
                         debug("OUTBID: order amount=" + amount + ", clicking slot " + slots.getFirst());
@@ -328,8 +357,8 @@ public class BazaarFlipper {
                             debug("OUTBID: amount=0, returning early");
                             return;
                         }
-                        bookIntegerMap.merge(outbidBuyOrderBook.getFirst(), amount, Integer::sum);
-                        booksToStore.add(outbidBuyOrderBook.getFirst());
+
+                        task.get(bookToHandle).addInInventory(amount);
                     }
                 }
 
@@ -349,27 +378,30 @@ public class BazaarFlipper {
 
                 if (containerCheck("Ender Chest")) clock.start(1000);
                 if (containerCheck("Ender Chest") && clock.shouldFire()) {
-                    if (booksToStore.isEmpty()) {
-                        debug("STORE: booksToStore empty, closing container and switching to IDLE");
+                    Book bookToHandle = firstBookInState(BookState.STORE);
+
+                    if (bookToHandle == null) {
                         minecraft.player.closeContainer();
                         state = State.IDLE;
                         return;
                     }
+
                     List<Integer> slots = new ArrayList<>();
-                    slots.addAll(inventoryScanner.findLoreInv(booksToStore.getFirst().getRomanLevel(booksToStore.getFirst().level())));
+                    slots.addAll(inventoryScanner.findLoreInv(bookToHandle.getRomanLevel(bookToHandle.level())));
                     if (!slots.isEmpty()) {
                         InventoryUtils.clickSlot(slots.getFirst(), true);
-                        debug("STORE: storing " + booksToStore.getFirst() + " at slot " + slots.getFirst());
+                        debug("STORE: storing " + bookToHandle.name() + " at slot " + slots.getFirst());
+                        task.get(bookToHandle).addInInventory(-1);
+                        task.get(bookToHandle).addInEnderChest(1);
                     }
                     if (slots.isEmpty()) {
-                        booksToStore.removeFirst();
+                        editStateBook(bookToHandle, BookState.SELECTED);
                         debug("STORE: slot is empty removing book from booksToStore");
                     }
                 }
             }
 
             case ANVIL -> {
-                List<Integer> slots = new ArrayList<>();
                 if (!containerCheck("Ender Chest")) clock.start(1000);
                 if (!containerCheck("Ender Chest") && clock.shouldFire()) {
                     debug("ANVIL: no ender chest, opening it");
@@ -378,14 +410,20 @@ public class BazaarFlipper {
 
                 if (containerCheck("Ender Chest")) clock.start(1000);
                 if (containerCheck("Ender Chest") && clock.shouldFire()) {
-                    for (Book book : completedList) {
-                        slots.addAll(inventoryScanner.findLoreContainer(book.getRomanLevel(book.level())));
+                    List<Integer> slots = new ArrayList<>();
+                    Book bookToHandle = firstBookInState(BookState.ANVIL);
+
+                    if (bookToHandle == null) {
+                        minecraft.player.closeContainer();
+                        state = State.COMBINE;
+                        return;
                     }
+
+                    slots.addAll(inventoryScanner.findLoreContainer(bookToHandle.getRomanLevel(bookToHandle.level())));
+
                     debug("ANVIL: found " + slots.size() + " book slots in ender chest");
                     if (slots.isEmpty()) {
-                        debug("ANVIL: no slots found, switching to COMBINE");
-                        state = State.COMBINE;
-                        minecraft.player.closeContainer();
+                        editStateBook(bookToHandle, BookState.COMBINE);
                         return;
                     }
                     debug("ANVIL: pulling slot " + slots.getFirst() + " from ender chest");
@@ -402,6 +440,14 @@ public class BazaarFlipper {
 
                 if (containerCheck("Anvil") && counter < 2) clock.start(1000);
                 if (containerCheck("Anvil") && counter < 2 && clock.shouldFire()) {
+                    Book bookToHandle = firstBookInState(BookState.COMBINE);
+
+                    if (bookToHandle == null) {
+                        state = State.SELL;
+                        minecraft.player.closeContainer();
+                        return;
+                    }
+
                     if (completedList.isEmpty()) {
                         debug("COMBINE: completedList empty, switching to SELL");
                         state = State.SELL;
@@ -409,11 +455,11 @@ public class BazaarFlipper {
                         return;
                     }
 
-                    List<Integer> stageOneBookList   = inventoryScanner.findLoreInv(completedList.getFirst().getRomanLevel(1));
-                    List<Integer> stageTwoBookList   = inventoryScanner.findLoreInv(completedList.getFirst().getRomanLevel(2));
-                    List<Integer> stageThreeBookList = inventoryScanner.findLoreInv(completedList.getFirst().getRomanLevel(3));
-                    List<Integer> stageFourBookList  = inventoryScanner.findLoreInv(completedList.getFirst().getRomanLevel(4));
-                    List<Integer> stageFiveBookList  = inventoryScanner.findLoreInv(completedList.getFirst().getRomanLevel(5));
+                    List<Integer> stageOneBookList   = inventoryScanner.findLoreInv(bookToHandle.getRomanLevel(bookToHandle.level()));
+                    List<Integer> stageTwoBookList   = inventoryScanner.findLoreInv(bookToHandle.getRomanLevel(bookToHandle.level()));
+                    List<Integer> stageThreeBookList = inventoryScanner.findLoreInv(bookToHandle.getRomanLevel(bookToHandle.level()));
+                    List<Integer> stageFourBookList  = inventoryScanner.findLoreInv(bookToHandle.getRomanLevel(bookToHandle.level()));
+                    List<Integer> stageFiveBookList  = inventoryScanner.findLoreInv(bookToHandle.getRomanLevel(bookToHandle.level()));
 
                     debug("COMBINE: stage counts - 1:" + stageOneBookList.size() + " 2:" + stageTwoBookList.size()
                             + " 3:" + stageThreeBookList.size() + " 4:" + stageFourBookList.size() + " 5:" + stageFiveBookList.size()
@@ -445,8 +491,7 @@ public class BazaarFlipper {
                     }
                     if (!stageFiveBookList.isEmpty()) {
                         debug("COMBINE: Completed final book, adding to bookstoSell");
-                        bookstoSell.add(completedList.getFirst());
-                        completedList.removeFirst();
+                        editStateBook(bookToHandle, BookState.SELL);
                         return;
                     }
                 }
@@ -467,6 +512,7 @@ public class BazaarFlipper {
 
             case SELL -> {
                 List<Integer> slots = new ArrayList<>();
+                List<Book> bookList = (booksInState(BookState.SELL));
                 if (!isContainerOpen()) clock.start(1000);
                 if (!isContainerOpen() && clock.shouldFire()) {
                     debug("SELL: no container, opening bazaar for tomato");
@@ -481,13 +527,17 @@ public class BazaarFlipper {
 
                 if (containerCheck("Bazaar")) clock.start(1000);
                 if (containerCheck("Bazaar") && clock.shouldFire()) {
-                    if (bookstoSell.isEmpty()) {
+
+                    if (bookList.isEmpty()) {
                         debug("SELL: bookstoSell empty, switching to IDLE");
-                        state = State.IDLE;
+                        state = State.FETCHING;
                         minecraft.player.closeContainer();
                         return;
                     }
-                    for (Book book : bookstoSell) {
+
+                    Set<String> seen = new HashSet<>();
+                    bookList.removeIf(book -> !seen.add(book.name()));
+                    for (Book book : bookList) {
                         slots.addAll(inventoryScanner.findContainer("SELL " + book.getRomanLevel(5)));
                     }
                     debug("SELL: found " + slots.size() + " sell slots");
@@ -497,10 +547,10 @@ public class BazaarFlipper {
                         InventoryUtils.clickSlot(slots.getFirst(), false);
                     }
                     if (slots.isEmpty()) {
-                        debug("SELL: no slots found, clicking on: " + bookstoSell.getFirst().name());
-                        List<Integer> slot = inventoryScanner.findLoreInv(bookstoSell.getFirst().getRomanLevel(bookstoSell.getFirst().sellLevel()));
+                        debug("SELL: no slots found, clicking on: " + bookList.getFirst().name());
+                        List<Integer> slot = inventoryScanner.findLoreInv(bookList.getFirst().getRomanLevel(bookList.getFirst().sellLevel()));
                         if (slot.isEmpty()) {
-                            bookstoSell.removeFirst();
+                            bookList.removeFirst();
                             debug("SELL: slot is empty, removed book from booksToSell and return" );
                             return;
                         }
@@ -514,8 +564,8 @@ public class BazaarFlipper {
                     InventoryUtils.clickSlot(13, false);
                 }
 
-                if (!bookstoSell.isEmpty() && containerCheck(bookstoSell.getFirst().name())) clock.start(500);
-                if (!bookstoSell.isEmpty() && containerCheck(bookstoSell.getFirst().name()) && clock.shouldFire()) {
+                if (!bookList.isEmpty() && containerCheck(bookList.getFirst().name())) clock.start(500);
+                if (!bookList.isEmpty() && containerCheck(bookList.getFirst().name()) && clock.shouldFire()) {
                     debug("SELL: book screen open, clicking slot 16");
                     InventoryUtils.clickSlot(16, false);
                 }
@@ -528,10 +578,10 @@ public class BazaarFlipper {
 
                 if (containerCheck("Confirm")) clock.start(1000);
                 if (containerCheck("Confirm") && clock.shouldFire()) {
-                    debug("SELL: confirm prompt, clicking slot 13 and removing " + bookstoSell.getFirst() + " from sell list");
+                    debug("SELL: confirm prompt, clicking slot 13 and removing " + bookList.getFirst() + " from sell list");
                     InventoryUtils.clickSlot(13, false);
-                    booksToRestart.add(bookstoSell.getFirst());
-                    bookstoSell.removeFirst();
+                    task.remove(bookList.getFirst());
+                    bookList.removeFirst();
 
                 }
             }
@@ -546,7 +596,43 @@ public class BazaarFlipper {
         }
     }
 
-    private void processData(List<Book> list) {
+    private List<Book> booksInState(BookState target) {
+        List<Book> result = new ArrayList<>();
+        for (Map.Entry<Book, Task> entry : task.entrySet()) {
+            if (entry.getValue().getBookState() == target) result.add(entry.getKey());
+        }
+        return result;
+    }
+
+
+    private void editStateBook(Book book, BookState target) {
+        task.get(book).setBookState(target);
+    }
+
+    private Book firstBookInState(BookState target) {
+        for (Map.Entry<Book, Task> entry : task.entrySet()) {
+            if (entry.getValue().getBookState() == target) return entry.getKey();
+        }
+        return null;
+    }
+
+    private void processData() {
+        if (flipItemsList.isEmpty()) return;
+        System.out.println("[BazaarFlipper] processData: item check passed");
+        double purse = scoreboardUtils.getPurse();
+        System.out.println("[BazaarFlipper] processData: purse = " + purse);
+
+        for (FlipItem flipItem : flipItemsList) {
+            if (purse < flipItem.totalCost()) continue;
+            if (task.containsKey(flipItem.book())) continue;
+            purse -= flipItem.totalCost();
+            System.out.println("[BazaarFlipper] processData: new purse = " + purse);
+            task.put(flipItem.book(), new Task(flipItem.book().getQtyAmount(flipItem.book().level())));
+            System.out.println("[BazaarFlipper] processData: new task created size:" + task.size());
+        }
+    }
+
+    /*private void processData(List<Book> list) {
         if (notEnoughMoney) return;
         double purse = scoreboardUtils.getPurse();
         System.out.println("[BazaarFlipper] processData: purse=" + purse + " booksToRestart=" + (list == null ? "null" : list.size()));
@@ -582,6 +668,8 @@ public class BazaarFlipper {
         if (!queue.isEmpty()) booksToRestart.clear();
     }
 
+     */
+
     private void openBazaar(String name) {
         if (containerCheck("bazaar")) return;
         System.out.println("[BazaarFlipper] openBazaar: sending command for " + name);
@@ -601,12 +689,8 @@ public class BazaarFlipper {
     }
 
     private void handleSign() {
-        String amountToOrder = String.valueOf(currentBook.getQtyAmount(currentBook.level()));
+        String amountToOrder = String.valueOf(task.get(activeBook).getAmountToOrder());
         if (minecraft.screen instanceof AbstractSignEditScreen signScreen) {
-            if (bookIntegerMap.containsKey(currentBook)) {
-                int calcAmount = currentBook.getQtyAmount(currentBook.level()) - bookIntegerMap.get(currentBook);
-                amountToOrder = String.valueOf(calcAmount);
-            }
             System.out.println("[BazaarFlipper] handleSign: writing amount=" + amountToOrder + " for book=" + currentBook);
             try {
                 Field messagesField = AbstractSignEditScreen.class.getDeclaredField("messages");
@@ -633,10 +717,14 @@ public class BazaarFlipper {
 
 
     private class Task {
-        private BookState bookState;
+        private BookState bookState = BookState.SELECTED;
         private int amountToOrder;
         private int inEnderChest;
         private int inInventory;
+
+        private Task(int amountToOrder) {
+            this.amountToOrder = amountToOrder;
+        }
 
         private BookState getBookState() {
             return bookState;
@@ -650,20 +738,24 @@ public class BazaarFlipper {
             this.amountToOrder = amountToOrder;
         }
 
-        private void setInEnderChest(int inEnderChest) {
-            this.inEnderChest = inEnderChest;
+        private void addInEnderChest(int inEnderChest) {
+            this.inEnderChest += inEnderChest;
         }
 
-        private void setInInventory(int inInventory) {
-            this.inInventory = inInventory;
+        private void addInInventory(int inInventory) {
+            this.inInventory += inInventory;
         }
 
         private int getAmountToOrder() {
             return amountToOrder - (inEnderChest + inInventory);
         }
 
-        private boolean shouldCheckInventory() {
+        private boolean shouldCheckEnderChest() {
             return inEnderChest > 0;
         }
+
+        private boolean isCompleted() { return getAmountToOrder() == 0; }
+
+        private boolean shouldStore() { return inInventory > 0; }
     }
 }
