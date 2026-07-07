@@ -68,6 +68,9 @@ public class BazaarFlipper {
 
     public void start() {
         debug("STARTED");
+        if (minecraft.screen != null) {
+            minecraft.player.closeContainer();
+        }
         enabled = true;
         state = State.START;
     }
@@ -652,10 +655,6 @@ public class BazaarFlipper {
 
         private void setBookState(BookState bookState) {
             this.bookState = bookState;
-        }
-
-        private void setAmountToOrder(int amountToOrder) {
-            this.amountToOrder = amountToOrder;
         }
 
         private void addInEnderChest(int inEnderChest) {
