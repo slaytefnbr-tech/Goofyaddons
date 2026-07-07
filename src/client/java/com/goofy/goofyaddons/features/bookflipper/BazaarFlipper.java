@@ -128,12 +128,6 @@ public class BazaarFlipper {
                     return;
                 }
 
-                Book bookToStore = firstBookInState(BookState.STORE);
-                if (bookToStore != null) {
-                    state = State.STORE;
-                    return;
-                }
-
                 Book bookSubStore = firstBookInState(BookState.SUB_STORE);
                 if (bookSubStore != null) {
                     state = State.BAZAAR_NAVIGATION;
@@ -141,10 +135,32 @@ public class BazaarFlipper {
                     return;
                 }
 
-                Book bookToCombine = firstBookInState(BookState.ANVIL);
-                if (bookToCombine != null) {
-                    state = State.ANVIL;
+                Book bookToStore = firstBookInState(BookState.STORE);
+                if (bookToStore != null) {
+                    state = State.STORE;
                     return;
+                }
+
+
+
+                List<Book> booksToAnvil = booksInState(BookState.ANVIL);
+                if (!booksToAnvil.isEmpty()) {
+                    boolean shouldCheck = false;
+                    for (Book book : booksToAnvil) {
+                        if (task.get(book).shouldCheckEnderChest()) {
+                            shouldCheck = true;
+                            continue;
+                        }
+
+                        editStateBook(book, BookState.COMBINE);
+                    }
+                    if (shouldCheck) {
+                        state = State.ANVIL;
+                    }
+                    else {
+                        state = State.COMBINE;
+                    }
+
                 }
 
                 clock.start(15000);
@@ -502,6 +518,7 @@ public class BazaarFlipper {
                     debug("SELL: confirm prompt, clicking slot 13 and removing " + bookList.getFirst() + " from sell list");
                     InventoryUtils.clickSlot(13, false);
                     removeDuplicateBooks(task);
+                    if (task.containsKey(bookList.getFirst())) task.remove(bookList.getFirst());
                     bookList.removeFirst();
 
                 }
@@ -544,8 +561,11 @@ public class BazaarFlipper {
 
     private void removeDuplicateBooks(Map<Book, Task> tasks) {
         Map<String, Integer> counts = new HashMap<>();
+        List<Book> stateBooks = new ArrayList<>();
 
-        for (Book book : tasks.keySet()) {
+        stateBooks.addAll(booksInState(BookState.SELL));
+
+        for (Book book : stateBooks) {
             counts.merge(book.name(), 1, Integer::sum);
         }
 
