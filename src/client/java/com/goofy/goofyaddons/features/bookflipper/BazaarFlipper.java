@@ -37,6 +37,7 @@ public class BazaarFlipper {
         SELECTED,
         BUY_ORDER,
         OUTBID,
+        SUB_STORE,
         STORE,
         ANVIL,
         COMBINE,
@@ -127,9 +128,10 @@ public class BazaarFlipper {
                     return;
                 }
 
-                Book bookToStore = firstBookInState(BookState.STORE);
+                Book bookToStore = firstBookInState(BookState.SUB_STORE);
                 if (bookToStore != null) {
-                    state = State.STORE;
+                    state = State.BAZAAR_NAVIGATION;
+                    activeBook = bookToStore;
                     return;
                 }
 
@@ -214,6 +216,7 @@ public class BazaarFlipper {
                 if (containerCheck("Confirm") && clock.shouldFire()) {
                     debug("PLACE_ORDER: confirming buy order for " + activeBook);
                     InventoryUtils.clickSlot(13, false);
+                    if (editIfStateBook(activeBook, BookState.SUB_STORE, BookState.STORE)) return;
                     editStateBook(activeBook, BookState.BUY_ORDER);
                     state = State.IDLE;
 
@@ -251,7 +254,7 @@ public class BazaarFlipper {
                     if (slots.isEmpty()) {
 
                         if (task.get(bookToHandle).shouldStore()) {
-                            editStateBook(bookToHandle, BookState.STORE);
+                            editStateBook(bookToHandle, BookState.SUB_STORE);
                         } else {
                             editStateBook(bookToHandle, BookState.SELECTED);
                         }
@@ -309,8 +312,8 @@ public class BazaarFlipper {
                         task.get(bookToHandle).addInEnderChest(1);
                     }
                     if (slots.isEmpty()) {
-                        editStateBook(bookToHandle, BookState.SELECTED);
-                        debug("STORE: slot is empty removing book from booksToStore");
+                        editStateBook(bookToHandle, BookState.BUY_ORDER);
+                        debug("STORE: slot is empty adding book to " + "BUY_ORDER");
                     }
                 }
             }
@@ -513,6 +516,11 @@ public class BazaarFlipper {
         return result;
     }
 
+    private boolean editIfStateBook(Book book, BookState check, BookState target) {
+        if (task.get(book).getBookState() != check) return false;
+        task.get(book).setBookState(target);
+        return true;
+    }
 
     private void editStateBook(Book book, BookState target) {
         task.get(book).setBookState(target);
