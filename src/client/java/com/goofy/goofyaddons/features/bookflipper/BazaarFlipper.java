@@ -78,7 +78,7 @@ public class BazaarFlipper {
     }
 
     public BazaarFlipper() {
-        ChatHook.onMessage("Filled", this::handleFilledMessage);
+        ChatHook.onMessage("filled", this::handleFilledMessage);
     }
 
     public void stop() {
@@ -105,6 +105,8 @@ public class BazaarFlipper {
         // reset timers
         clock.stop();
 
+        bazaarMonitor.stop();
+
         debug("Reset complete");
     }
 
@@ -112,7 +114,6 @@ public class BazaarFlipper {
         if (!enabled) return;
 
         bazaarMonitor.onTick();
-        bazaarMonitor.start();
         lastStateCheck();
 
         switch (state) {
@@ -121,6 +122,7 @@ public class BazaarFlipper {
                 flipCalculator.Refresh();
                 debug("START: Switching to FETCHING");
                 state = State.FETCHING;
+                bazaarMonitor.start();
             }
 
             case IDLE -> {
@@ -648,6 +650,8 @@ public class BazaarFlipper {
                 .replace(" was filled!", "");
 
         stripped = stripped.substring(stripped.indexOf(' ') + 1);
+
+        System.out.println(stripped);
 
         for (Book book : booksInState) {
             if (!stripped.equals(book.getRomanLevel(book.level()))) continue;

@@ -23,9 +23,9 @@ public class ChatHook {
     private static void onChatMessage(Component message, boolean overlay) {
         if (overlay == true) return;
         String text = message.getString().replaceAll("§.", "");
-
         for (HOOK hook : hookList) {
             if (!text.contains(hook.pattern)) continue;
+            System.out.println("Found hook");
             hook.string.accept(text);
         }
     }
