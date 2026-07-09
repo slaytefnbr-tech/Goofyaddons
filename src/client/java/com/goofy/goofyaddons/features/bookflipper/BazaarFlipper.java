@@ -17,6 +17,7 @@ import java.util.*;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractSignEditScreen;
 import net.minecraft.client.gui.screens.inventory.SignEditScreen;
+import java.util.SplittableRandom;
 
 
 public class BazaarFlipper {
@@ -60,7 +61,7 @@ public class BazaarFlipper {
     private int counter = 0;
     private boolean clickedOnce = false;
     private Book activeBook = null;
-    private Random random = new Random();
+    private SplittableRandom splittableRandom = new SplittableRandom();
 
 
 
@@ -663,7 +664,7 @@ public class BazaarFlipper {
     }
 
     private int randomizer() {
-        int result = random.nextInt(GoofyConfig.INSTANCE.maxActionDelay - GoofyConfig.INSTANCE.minActionDelay + 1) + GoofyConfig.INSTANCE.minActionDelay;
+        int result = splittableRandom.nextInt(GoofyConfig.INSTANCE.minActionDelay, GoofyConfig.INSTANCE.maxActionDelay);
 
         if (result > 50) {
             return result;
