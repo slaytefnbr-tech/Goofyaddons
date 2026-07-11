@@ -63,7 +63,7 @@ public class BazaarFlipper {
     private SplittableRandom splittableRandom = new SplittableRandom();
     private List<String> sellOrderName = new ArrayList<>();
     private boolean notEnoughCash = false;
-    private boolean isInventoryFull = true;
+    private boolean isInventoryFull = false;
 
 
 
@@ -147,7 +147,7 @@ public class BazaarFlipper {
                 }
 
                 Book outbidBook = firstBookInState(BookState.OUTBID);
-                if (outbidBook != null & !isInventoryFull) {
+                if (outbidBook != null && !isInventoryFull) {
                     state = State.OUTBID;
                     return;
                 }
