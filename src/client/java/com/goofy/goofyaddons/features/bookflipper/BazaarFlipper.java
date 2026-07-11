@@ -63,6 +63,7 @@ public class BazaarFlipper {
     private SplittableRandom splittableRandom = new SplittableRandom();
     private List<String> sellOrderName = new ArrayList<>();
     private boolean notEnoughCash = false;
+    private boolean isInventoryFull = true;
 
 
 
@@ -110,6 +111,7 @@ public class BazaarFlipper {
         clock.stop();
 
         bazaarMonitor.stop();
+        isInventoryFull = false;
 
         debug("Reset complete");
     }
@@ -145,7 +147,7 @@ public class BazaarFlipper {
                 }
 
                 Book outbidBook = firstBookInState(BookState.OUTBID);
-                if (outbidBook != null) {
+                if (outbidBook != null & !isInventoryFull) {
                     state = State.OUTBID;
                     return;
                 }
@@ -160,6 +162,7 @@ public class BazaarFlipper {
                 Book bookToStore = firstBookInState(BookState.STORE);
                 if (bookToStore != null) {
                     state = State.STORE;
+                    isInventoryFull = false;
                     return;
                 }
 
@@ -167,6 +170,7 @@ public class BazaarFlipper {
 
                 List<Book> booksToAnvil = booksInState(BookState.ANVIL);
                 if (!booksToAnvil.isEmpty()) {
+                    isInventoryFull = false;
                     boolean shouldCheck = false;
                     for (Book book : booksToAnvil) {
                         if (task.get(book).shouldCheckEnderChest()) {
@@ -313,6 +317,7 @@ public class BazaarFlipper {
                             task.get(bookToHandle).setEarlyAction(true);
                             editStateBook(bookToHandle, BookState.STORE);
                             state = State.STORE;
+                            isInventoryFull = true;
                             minecraft.player.closeContainer();
                             return;
                         }
