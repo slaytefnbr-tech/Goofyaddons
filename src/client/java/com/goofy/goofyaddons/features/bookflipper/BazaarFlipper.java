@@ -64,6 +64,7 @@ public class BazaarFlipper {
     private List<String> sellOrderName = new ArrayList<>();
     private boolean notEnoughCash = false;
     private boolean isInventoryFull = false;
+    private boolean didRemoveOrder = false;
 
 
 
@@ -112,6 +113,7 @@ public class BazaarFlipper {
 
         bazaarMonitor.stop();
         isInventoryFull = false;
+        didRemoveOrder = false;
 
         debug("Reset complete");
     }
@@ -149,6 +151,7 @@ public class BazaarFlipper {
                 Book outbidBook = firstBookInState(BookState.OUTBID);
                 if (outbidBook != null && !isInventoryFull) {
                     state = State.OUTBID;
+                    didRemoveOrder = false;
                     return;
                 }
 
@@ -304,7 +307,10 @@ public class BazaarFlipper {
                     debug("OUTBID: found " + slots.size() + " slots for " + bookToHandle);
 
                     if (slots.isEmpty()) {
+                        if (!task.get(bookToHandle).isCompleted() && !didRemoveOrder) return;
                         editStateBook(bookToHandle, task.get(bookToHandle).isCompleted() ? BookState.ANVIL : BookState.SELECTED);
+                        didRemoveOrder = false;
+
                         return;
 
                     }
@@ -334,6 +340,7 @@ public class BazaarFlipper {
 
                 if (containerCheck("Order")) clock.start(randomizer());
                 if (containerCheck("Order") && clock.shouldFire()) {
+                    didRemoveOrder = true;
                     debug("OUTBID: Order screen open, clicking slot 11");
                     InventoryUtils.clickSlot(11, false);
                 }
