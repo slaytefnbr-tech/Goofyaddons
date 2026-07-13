@@ -483,8 +483,12 @@ public class BazaarFlipper {
                 if (counter == 2 && clock.shouldFire()) {
                     debug("COMBINE: counter==2, clicking anvil output slot 22 with normal click");
                     InventoryUtils.clickSlot(22, false);
-                    counter = 0;
-                    return;
+                    if (clickedOnce) {
+                        clickedOnce = false;
+                        counter = 0;
+                        return;
+                    }
+                    clickedOnce = true;
                 }
             }
 
@@ -846,25 +850,5 @@ public class BazaarFlipper {
 
         private boolean shouldStore() { return inInventory > 0; }
 
-        private int getBooktoCombine() {
-            int result = 0;
-
-            if (counter == inInventory / 2) {
-                inInventory /= 2;
-                counter = 0;
-            }
-
-            if (inInventory > 1) {
-                int divisions = Integer.numberOfTrailingZeros(inInventory);
-                 result = 5 - divisions;
-            }
-
-
-            return result;
-        }
-
-        private void increaseCounter() {
-            counter++;
-        }
     }
 }
