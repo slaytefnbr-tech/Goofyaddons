@@ -65,6 +65,8 @@ public class BazaarFlipper {
     private boolean notEnoughCash = false;
     private boolean isInventoryFull = false;
     private boolean didRemoveOrder = false;
+    private boolean claimedItems = false;
+    private boolean didReceiveItems = false;
 
 
 
@@ -85,6 +87,7 @@ public class BazaarFlipper {
 
     public BazaarFlipper() {
         ChatHook.onMessage("filled", this::handleFilledMessage);
+        ChatHook.onMessage("claimed", this::handleClaimedMessage);
     }
 
     public void stop() {
@@ -152,6 +155,8 @@ public class BazaarFlipper {
                 if (outbidBook != null && !isInventoryFull) {
                     state = State.OUTBID;
                     didRemoveOrder = false;
+                    didReceiveItems = false;
+                    claimedItems = false;
                     return;
                 }
 
@@ -303,6 +308,15 @@ public class BazaarFlipper {
                         return;
                     }
 
+                    if (claimedItems) {
+                        if (didReceiveItems) {
+                            claimedItems = false;
+                            didReceiveItems = false;
+                            return;
+                        }
+                        return;
+                    }
+
 
                     List<Integer> slots = inventoryScanner.findContainer("BUY " + bookToHandle.getRomanLevel(bookToHandle.level()));
                     debug("OUTBID: found " + slots.size() + " slots for " + bookToHandle);
@@ -333,6 +347,8 @@ public class BazaarFlipper {
                             debug("OUTBID: amount=0, returning early");
                             return;
                         }
+
+                        claimedItems = true;
 
 
                         task.get(bookToHandle).addInInventory(amount);
@@ -442,6 +458,8 @@ public class BazaarFlipper {
                     debug("COMBINE: no anvil open, opening it");
                     openAnvil();
                 }
+
+
 
                 if (containerCheck("Anvil") && counter < 2) clock.start(randomizer());
                 if (containerCheck("Anvil") && counter < 2 && clock.shouldFire()) {
@@ -751,6 +769,13 @@ public class BazaarFlipper {
         return true;
     }
 
+    private void handleClaimedMessage(String string) {
+        if (!didReceiveItems) {
+            didReceiveItems = true;
+        }
+    }
+
+
     private void handleFilledMessage(String string) {
         List<Book> booksInState = new ArrayList<>();
         booksInState.addAll(booksInState(BookState.BUY_ORDER, BookState.STORE));
@@ -840,6 +865,7 @@ public class BazaarFlipper {
                 int divisions = Integer.numberOfTrailingZeros(inInventory);
                  result = 5 - divisions;
             }
+
 
             return result;
         }
